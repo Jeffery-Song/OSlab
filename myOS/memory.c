@@ -8,7 +8,6 @@ void check_mem(void){
     for(;p<0x10000;p++) *(int *)(p+0x10000)=*(int *)p;
     CTX_SW1();
     */
-    
     while(1){
         temp=*pMemStart;
         *pMemStart=0xaa55;                          //write aa55 and check if gets aa55

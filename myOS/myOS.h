@@ -9,7 +9,7 @@
 
 #define PtnNodePoolSize 20
 
-#include "userApp.h"
+#include "../userApp/userApp.h"
 #include "stdio.h"
 //void myprintf(int color, const char *format,...);
 typedef struct myTCB{
@@ -71,4 +71,16 @@ unsigned long pMemHandler;
 //fp* Ptnhead;
 unsigned long PtnTable;
 unsigned long PtnBase;
+
+void smallint(void);
+void tick(void);
+void updatetime(void);
+volatile int tick_number;
+volatile int rrtime;
+int hour,min,sec;
+void clkinit(void);
+void disableRQ(void);
+void enableRQ(void);
+unsigned long espstore;
+void CTX_SW_iret(void);
 #endif

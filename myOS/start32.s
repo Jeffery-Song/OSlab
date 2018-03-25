@@ -1,9 +1,24 @@
+.section    ".IDT",     "ax"
+.align      32
+IDT:
+.rept       64
+.word       clkhandler
+.word       0x8
+.word       0x8E00
+.word       0
+.endr
+IDTPtr:
+.word       IDTPtr - IDT - 1
+IDTBase:
+.long       IDT
+
 .section    ".bsdata",  "ax"
 char:       .ascii  "O.K.!\n\nCall myMain...\0"
 .section    .bss
 _bss_start:
 .org        0x1000,      0           #bss has 1kB
 _bss_end:
+
 .section    ".bstext",  "ax"
 .code32
 .globl      _start32
@@ -31,9 +46,41 @@ xorl    %ebx,   %ebx                #print in os now
 movw    $899,   %bx                 #end of "load os..."
 leal    char,   %esi
 call    _print                    
+call    init8259A
+call    init8253
+
+xorl    %eax,   %eax
+movl    $IDT,   %eax
+#movl    %eax,   IDTBase
+movl    $IDTPtr,    %ebx
+movl    %eax,       %ds:2(,%ebx,1)
+lidt    %ds:0(,%ebx,1)
+call    clkinit
+#int     $0x31
 call    myMain                        #call main function
 dead:
 jmp     dead                        #deal loop
+
+
+
+.globl myfrstint
+myfrstint:
+movw    $0x0221,  %ax
+movl    $79,    %ebx
+movw    %ax,    %gs:0(,%ebx,2)
+intloop:
+jmp intloop
+iret
+
+.globl clkhandler
+clkhandler:
+pushf
+pusha
+movl    %esp,   espstore
+call tick
+popa
+popf
+iret
 
 _print:
 movb    $0x7,   %ah                 #color
@@ -77,19 +124,100 @@ movl    4(%esp),  %esi              #string addr
 call    _print
 ret
 
-.globl CTX_SW
-CTX_SW:
-pusha
-movl    %esp,       prevSP
+.globl CTX_SW_iret
+CTX_SW_iret:
+movl    prevSP,     %eax
+movl    espstore,   %ecx
+movl    %ecx,       (%eax)
 movl    nextSP,     %esp
-popa
+popa 
+popf
+sti
 ret
 
-.globl CTX_SW1
-CTX_SW1:
-push    %eax
-movl    4(%esp),    %eax
-addl    0x10000,    %eax
-movl    %eax,       4(%esp)
-pop     %eax
+.global CTX_SW
+CTX_SW: 
+#pushf 
+#pusha 
+#movl    prevSP,     %eax
+#movl    espstore,   %ecx
+#movl    %ecx,       (%eax)
+movl    nextSP,     %esp
+popa 
+popf
+sti
+ret
+
+io_delay:
+nop
+nop
+nop
+ret
+
+.globl init8259A
+init8259A:
+mov $0xff, %al
+out %al, $0x21
+out %al, $0xA1
+	
+mov $0x11, %al
+out %al, $0x20
+	
+mov $0x20, %al
+out %al, $0x21
+	
+mov $0x04, %al
+out %al, $0x21
+##define AUTO_EOI 1
+##if AUTO_EOI
+mov $0x03, %al
+out %al, $0x21
+##else
+#mov $0x01, %al
+#out %al, $0x21
+##endif
+  	
+mov $0x11, %al
+out %al, $0xA0
+	
+mov $0x28, %al
+out %al, $0xA1
+	
+mov $0x02, %al
+out %al, $0xA1
+
+mov $0x01, %al
+out %al, $0xA1
+
+ret
+
+.globl init8253
+init8253:
+mov $0x34, %al
+out %al, $0x43
+
+# ?100HZ?
+mov $(11932 & 0xff), %al
+out %al, $0x40
+	
+mov $(11932 >> 8), %al
+out	%al, $0x40	
+	
+in $0x21, %al 
+andb $0xFE, %al
+out %al, $0x21
+ret
+
+.globl  smallint
+smallint:
+int $0x20
+ret
+
+.globl  disableRQ
+disableRQ:
+cli
+ret
+.globl  enableRQ
+enableRQ:
+sti
 ret

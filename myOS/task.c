@@ -11,6 +11,7 @@ void dequeue(){
 void stack_init(unsigned long **p,void (*task)(void)){
     *(*p)--=0x08;
     *(*p)--=(unsigned long)task;
+    *(*p)--=0x00000287;
     *(*p)--=0xAAAAAAAA;    //eax
     *(*p)--=0xCCCCCCCC;    //ecx
     *(*p)--=0xDDDDDDDD;    //edx
@@ -28,31 +29,53 @@ void createTsk(void (*task)(void)){
     p->next=NULL;
     p->stktop=p->stack+127; //top of the stack
     stack_init(&(p->stktop),task);
-    inqueue(p);
     pid++;
+    inqueue(p);
 }
 void destoryTsk(){
     eFPartitionFree(PtnTable,(unsigned long)tskcurrent);
 }
 void tskEnd(){
+    tskcurrent->state=2;
     dequeue();
     destoryTsk();
     schedule();
 }
 void schedule(){
+    disableRQ();
+    rrtime=0;
     if(tskhead==tskrear) {              //idle left
-        if(tskrear->state==0) return;   //idle already runing
+        if(tskrear->state==0) {
+            enableRQ();
+            return;   //idle already runing
+        }
+        prevSP=&(tskrear->stktop);
         nextSP=tskrear->stktop;         //start idle
         tskrear->state=0;
         tskcurrent=tskrear;
+        CTX_SW();
     }
     else {                              //not just idle, start the first task
-        nextSP=(tskhead->next)->stktop; 
-        tskcurrent->state=1;
-        tskcurrent=tskhead->next;
-        tskcurrent->state=0;
+        if(tskcurrent->state==0){
+            //int,dequeue,inqueue
+            tskcurrent->state=1;
+            dequeue();
+            inqueue(tskcurrent);
+            prevSP=&(tskcurrent->stktop);
+            nextSP=(tskhead->next)->stktop; 
+            tskcurrent=tskhead->next;
+            tskcurrent->state=0;
+            CTX_SW_iret();
+        }
+        else {
+            //already dequeue
+            prevSP=&(tskcurrent->stktop);
+            nextSP=(tskhead->next)->stktop; 
+            tskcurrent=tskhead->next;
+            tskcurrent->state=0;
+            CTX_SW();
+        }
     }
-    CTX_SW();                           //jump to it
 }
 void idle(){
     while(1){
@@ -80,6 +103,7 @@ void osStart(){
     tskhead->pid=0;
     tskcurrent=tskhead;
     createTsk(initTskBody);             //create init
-    //createTsk(init);
-    schedule();                         //first schedule, run init in fact
+    enableRQ();
+    while(1);
+    //schedule();                         //first schedule, run init in fact
 }

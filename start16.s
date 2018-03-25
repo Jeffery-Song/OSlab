@@ -118,7 +118,7 @@ int     $0x10               #bios int
 movw    $0,         %ax
 movw    %ax,        %es     #os store to es:bx
 movw    $0x7e00,    %bx                 
-movw    $0x0212,    %ax     #ah=02h,read from drive
+movw    $0x0217,    %ax     #ah=02h,read from drive
                             #al=01,read 18 sector
 movw    $0,    %dx          #dh head num,0
                             #dl drive,0 is the first fdisk
